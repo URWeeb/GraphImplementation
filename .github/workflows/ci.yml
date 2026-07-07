@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Debug, Release]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} -j 4
+
+      - name: Run tests
+        working-directory: build
+        run: ctest --output-on-failure --build-config ${{ matrix.build_type }}
+
+  sanitizers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure CMake with ASan/UBSan
+        run: >
+          cmake -S . -B build-asan
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -g"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build tests
+        run: cmake --build build-asan --target graph_tests -j 4
+
+      - name: Run tests under ASan/UBSan
+        working-directory: build-asan
+        run: ./graph_tests
+
+  standalone-compile-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile graph_algos.cpp directly with g++
+        run: g++ -std=c++17 -Wall -Wextra -O2 src/graph_algos.cpp -o a.out
+
+      - name: Smoke test against example from the assignment
+        run: |
+          printf 'NODE A\nNODE B\nEDGE A B 5\nDIJKSTRA A\n' | ./a.out > out1.txt
+          diff out1.txt - <<< "B 5"
+
+          printf 'NODE A\nNODE B\nNODE C\nEDGE A B 1\nEDGE B C 1\nEDGE C A 1\nTARJAN A\n' | ./a.out > out2.txt
+          diff out2.txt - <<< "A B C"

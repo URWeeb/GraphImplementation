@@ -1,0 +1,322 @@
+#define GRAPH_ALGOS_NO_MAIN
+#include "../src/graph_algos.cpp"
+
+#include <gtest/gtest.h>
+
+#include <sstream>
+#include <string>
+#include <vector>
+
+namespace {
+
+/*
+  Функция для запуска набора комманд
+
+  - Параметры:
+  -- const std::vector<std::string>& lines - вектор строк, комманды из которых
+  будут обрабатываться
+
+  - Возвращаемое значение:
+  -- std::string - весь текст, что напечатал экземпляр класса Graph
+*/
+std::string RunCommands(const std::vector<std::string> &lines) {
+  Graph graph{};
+
+  std::ostringstream captured_output;
+  std::streambuf *original_cout_buf = std::cout.rdbuf(captured_output.rdbuf());
+
+  for (const std::string &line : lines) {
+    if (line.empty()) {
+      continue;
+    }
+
+    std::stringstream string_stream(line);
+    graph.CommandProcessing(string_stream);
+  }
+
+  std::cout.rdbuf(original_cout_buf);
+  return captured_output.str();
+}
+
+/*
+  Функция, которая разбивает вывод на строки для более удобных построчных
+  сравнений там, где порядок внутри блока не гарантирован (например, вывод
+  Дейкстры идёт в порядке std::map)
+
+  - Параметры:
+  -- const std::string& text - текст, который будет разбиваться на строки
+
+  - Возвращаемое значение:
+  -- std::vector<std::string> - вектор из строк, полученных разбиением текста
+*/
+std::vector<std::string> SplitLines(const std::string &text) {
+  std::vector<std::string> result;
+  std::stringstream stream(text);
+  std::string line;
+
+  while (std::getline(stream, line)) {
+    result.push_back(line);
+  }
+
+  return result;
+}
+
+} // namespace
+
+TEST(GraphBasics, AddEdgeWithMissingSourceNode) {
+  std::string output = RunCommands({"NODE B", "EDGE A B 5"});
+
+  EXPECT_EQ(output, "Unknown node A\n");
+}
+
+TEST(GraphBasics, AddEdgeWithMissingTargetNode) {
+  std::string output = RunCommands({"NODE A", "EDGE A B 5"});
+
+  EXPECT_EQ(output, "Unknown node B\n");
+}
+
+TEST(GraphBasics, AddEdgeWithBothNodesMissing) {
+  std::string output = RunCommands({"EDGE A B 5"});
+
+  EXPECT_EQ(output, "Unknown nodes A B\n");
+}
+
+TEST(GraphBasics, AddDuplicateNodeIsIgnoredSilently) {
+  std::string output = RunCommands({"NODE A", "NODE A", "RPO_NUMBERING A"});
+
+  EXPECT_EQ(output, "A\n");
+}
+
+TEST(GraphBasics, RemoveExistingNode) {
+  std::string output = RunCommands(
+      {"NODE A", "NODE B", "EDGE A B 5", "REMOVE NODE B", "EDGE A B 5"});
+
+  EXPECT_EQ(output, "Unknown node B\n");
+}
+
+TEST(GraphBasics, RemoveUnknownNode) {
+  std::string output = RunCommands({"REMOVE NODE Z"});
+
+  EXPECT_EQ(output, "Unknown node Z\n");
+}
+
+TEST(GraphBasics, RemoveEdgeWithMissingNodes) {
+  std::string output = RunCommands({"NODE A", "REMOVE EDGE A B"});
+
+  EXPECT_EQ(output, "Unknown node B\n");
+}
+
+TEST(GraphBasics, RemoveEdgeThenRepathIsUnreachable) {
+  std::string output = RunCommands(
+      {"NODE A", "NODE B", "EDGE A B 5", "REMOVE EDGE A B", "DIJKSTRA A"});
+
+  EXPECT_EQ(output, "");
+}
+
+TEST(GraphBasics, RemovingNodeAlsoRemovesIncidentEdges) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "NODE C", "EDGE A B 1", "EDGE B C 1",
+                   "REMOVE NODE B", "DIJKSTRA A"});
+
+  EXPECT_EQ(output, "");
+}
+
+TEST(RpoNumbering, UnknownStartNode) {
+  std::string output = RunCommands({"RPO_NUMBERING A"});
+
+  EXPECT_EQ(output, "Unknown node A\n");
+}
+
+TEST(RpoNumbering, SingleNodeNoEdges) {
+  std::string output = RunCommands({"NODE A", "RPO_NUMBERING A"});
+
+  EXPECT_EQ(output, "A\n");
+}
+
+TEST(RpoNumbering, LinearChainOrder) {
+  std::string output = RunCommands({"NODE A", "NODE B", "NODE C", "EDGE A B 1",
+                                    "EDGE B C 1", "RPO_NUMBERING A"});
+
+  EXPECT_EQ(output, "A B C\n");
+}
+
+TEST(RpoNumbering, NoTrailingSpace) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "EDGE A B 1", "RPO_NUMBERING A"});
+
+  EXPECT_EQ(output, "A B\n");
+  ASSERT_FALSE(output.empty());
+  EXPECT_NE(output[output.size() - 2], ' ');
+}
+
+TEST(RpoNumbering, DetectsSelfLoop) {
+  std::string output = RunCommands({"NODE A", "EDGE A A 1", "RPO_NUMBERING A"});
+
+  EXPECT_EQ(output, "Found loop A->A\nA\n");
+}
+
+TEST(RpoNumbering, DetectsCycleAndReportsCorrectDirection) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "NODE C", "EDGE A B 1", "EDGE B C 1",
+                   "EDGE C A 1", "RPO_NUMBERING A"});
+
+  std::vector<std::string> lines = SplitLines(output);
+
+  ASSERT_EQ(lines.size(), 2u);
+  EXPECT_EQ(lines[0], "Found loop C->A");
+  EXPECT_EQ(lines[1], "A B C");
+}
+
+TEST(RpoNumbering, UnreachableNodesAreNotVisited) {
+  std::string output = RunCommands(
+      {"NODE A", "NODE B", "NODE C", "EDGE A B 1", "RPO_NUMBERING A"});
+
+  EXPECT_EQ(output, "A B\n");
+}
+
+TEST(Dijkstra, UnknownStartNode) {
+  std::string output = RunCommands({"DIJKSTRA A"});
+
+  EXPECT_EQ(output, "Unknown node A\n");
+}
+
+TEST(Dijkstra, ExampleFromSpec) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "NODE C", "NODE D", "EDGE A B 10",
+                   "EDGE B C 10", "EDGE C D 10", "DIJKSTRA A"});
+
+  EXPECT_EQ(output, "B 10\nC 20\nD 30\n");
+}
+
+TEST(Dijkstra, StartNodeIsNotPrintedInOwnResult) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "EDGE A B 5", "DIJKSTRA A"});
+
+  EXPECT_EQ(output, "B 5\n");
+}
+
+TEST(Dijkstra, PicksShortestOfMultiplePaths) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "NODE C", "EDGE A B 1", "EDGE B C 1",
+                   "EDGE A C 100", "DIJKSTRA A"});
+
+  EXPECT_EQ(output, "B 1\nC 2\n");
+}
+
+TEST(Dijkstra, UnreachableNodesAreOmitted) {
+  std::string output = RunCommands({"NODE A", "NODE B", "DIJKSTRA A"});
+
+  EXPECT_EQ(output, "");
+}
+
+TEST(Dijkstra, ZeroWeightEdgeIsHandledCorrectly) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "EDGE A B 0", "DIJKSTRA A"});
+
+  EXPECT_EQ(output, "B 0\n");
+}
+
+TEST(MaxFlow, UnknownNodes) {
+  std::string output = RunCommands({"NODE A", "MAXFLOW A G"});
+
+  EXPECT_EQ(output, "Unknown node G\n");
+}
+
+TEST(MaxFlow, StartEqualsEndReturnsZero) {
+  std::string output = RunCommands({"NODE A", "MAXFLOW A A"});
+
+  EXPECT_EQ(output, "0\n");
+}
+
+TEST(MaxFlow, NoPathReturnsZero) {
+  std::string output = RunCommands({"NODE A", "NODE B", "MAXFLOW A B"});
+
+  EXPECT_EQ(output, "0\n");
+}
+
+TEST(MaxFlow, SingleEdgeCapacity) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "EDGE A B 5", "MAXFLOW A B"});
+
+  EXPECT_EQ(output, "5\n");
+}
+
+TEST(MaxFlow, BottleneckOnLinearChain) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "NODE C", "NODE D", "EDGE A B 10",
+                   "EDGE B C 3", "EDGE C D 10", "MAXFLOW A D"});
+
+  EXPECT_EQ(output, "3\n");
+}
+
+TEST(MaxFlow, ParallelPathsSumUp) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "NODE C", "NODE D", "EDGE A B 5",
+                   "EDGE B D 5", "EDGE A C 5", "EDGE C D 5", "MAXFLOW A D"});
+
+  EXPECT_EQ(output, "10\n");
+}
+
+TEST(MaxFlow, ClassicDiamondWithSharedMiddleEdge) {
+  std::string output = RunCommands(
+      {"NODE A", "NODE B", "NODE C", "NODE D", "EDGE A B 1000", "EDGE A C 1000",
+       "EDGE B D 1000", "EDGE C D 1000", "EDGE B C 1", "MAXFLOW A D"});
+
+  EXPECT_EQ(output, "2000\n");
+}
+
+TEST(MaxFlow, UsesResidualBackwardEdgeToFindOptimalFlow) {
+  std::string output = RunCommands({"NODE A", "NODE B", "NODE C", "NODE D",
+                                    "EDGE A B 1", "EDGE A C 1", "EDGE C B 1",
+                                    "EDGE B D 1", "EDGE C D 1", "MAXFLOW A D"});
+
+  EXPECT_EQ(output, "2\n");
+}
+
+TEST(Tarjan, UnknownStartNode) {
+  std::string output = RunCommands({"TARJAN A"});
+
+  EXPECT_EQ(output, "Unknown node A\n");
+}
+
+TEST(Tarjan, ExampleFromSpec) {
+  std::string output = RunCommands({"NODE A", "NODE B", "NODE C", "EDGE A B 1",
+                                    "EDGE B C 1", "EDGE C A 1", "TARJAN A"});
+
+  EXPECT_EQ(output, "A B C\n");
+}
+
+TEST(Tarjan, SingleNodeSccsAreFilteredOut) {
+  std::string output = RunCommands(
+      {"NODE A", "NODE B", "NODE C", "EDGE A B 1", "EDGE B C 1", "TARJAN A"});
+
+  EXPECT_EQ(output, "");
+}
+
+TEST(Tarjan, MultipleSccsAreSortedByFirstNode) {
+  std::string output = RunCommands({"NODE A", "NODE B", "NODE D", "NODE E",
+                                    "EDGE A B 1", "EDGE B A 1", "EDGE B D 1",
+                                    "EDGE D E 1", "EDGE E D 1", "TARJAN A"});
+
+  EXPECT_EQ(output, "A B\nD E\n");
+}
+
+TEST(Tarjan, NodeOutsideCycleIsExcluded) {
+  std::string output =
+      RunCommands({"NODE A", "NODE B", "NODE C", "NODE D", "EDGE A B 1",
+                   "EDGE B C 1", "EDGE C A 1", "EDGE C D 1", "TARJAN A"});
+
+  EXPECT_EQ(output, "A B C\n");
+}
+
+TEST(Tarjan, NodesWithinSccAreSortedAlphabetically) {
+  std::string output = RunCommands({"NODE Z", "NODE X", "NODE Y", "EDGE Z X 1",
+                                    "EDGE X Y 1", "EDGE Y Z 1", "TARJAN Z"});
+
+  EXPECT_EQ(output, "X Y Z\n");
+}
+
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

@@ -79,6 +79,20 @@ TEST(GraphBasics, AddEdgeWithMissingTargetNode) {
   EXPECT_EQ(output, "Unknown node B\n");
 }
 
+/*
+  Тест корректности добавления уже существующего ребра(вес/пропускная
+  способность должны обновиться)
+*/
+TEST(GraphBasics, AddAlreadyExistingEdgeWithNewWeight) {
+  std::string output = RunCommands({"NODE A", "NODE B", "EDGE A B 5",
+                                    "DIJKSTRA A", "EDGE A B 10", "DIJKSTRA A"});
+
+  std::vector<std::string> lines = SplitLines(output);
+
+  EXPECT_EQ(lines[0], "B 5");
+  EXPECT_EQ(lines[1], "B 10");
+}
+
 /* Тест добавления ребра с обеими отсутствующими вершинами */
 TEST(GraphBasics, AddEdgeWithBothNodesMissing) {
   std::string output = RunCommands({"EDGE A B 5"});

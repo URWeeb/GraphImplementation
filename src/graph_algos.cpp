@@ -142,6 +142,8 @@ private:
     -- std::string id - идентификатор узла
     -- std::list<Edge*> in - двусвязный список входящих в вершину рёбер
     -- std::list<Edge*> out - двусвязный список исходящих из вершины рёбер
+    -- std::unordered_map<Node*, Edge*> out_edge_table - хэш-таблица для
+    быстрого поиска исходящих рёбер по имени узла;
 
     - Методы:
     -- Node(const std::string&) - конструктор класса по идентификатору
@@ -164,12 +166,14 @@ private:
       out.push_back(out_edge);
       out_edge->out_position = out.end();
       --out_edge->out_position;
+      out_edge_table[out_edge->target] = out_edge;
     }
 
   public:
     std::string id;
     std::list<Edge *> in = {};
     std::list<Edge *> out = {};
+    std::unordered_map<Node *, Edge *> out_edge_table;
   };
 
   /*
@@ -345,6 +349,12 @@ private:
       return;
     }
 
+    auto search_iter = source_node->out_edge_table.find(target_node);
+    if (search_iter != source_node->out_edge_table.end()) {
+      search_iter->second->weight = weight;
+      return;
+    }
+
     Edge *new_edge = new Edge{source_node, target_node, weight};
     source_node->AddOutEdge(new_edge);
     target_node->AddInEdge(new_edge);
@@ -362,6 +372,7 @@ private:
     }
 
     edge->source->out.erase(edge->out_position);
+    edge->source->out_edge_table.erase(edge->target);
     edge->target->in.erase(edge->in_position);
 
     delete edge;
@@ -385,11 +396,9 @@ private:
       return;
     }
 
-    for (Edge *edge : source_node->out) {
-      if (edge->target == target_node) {
-        RemoveEdge(edge);
-        return;
-      }
+    auto search_iter = source_node->out_edge_table.find(target_node);
+    if (search_iter != source_node->out_edge_table.end()) {
+      RemoveEdge(search_iter->second);
     }
   }
 

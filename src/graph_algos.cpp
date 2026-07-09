@@ -405,6 +405,9 @@ private:
   /*
     Метод для удаления узла из по графа по идентификатору. Если узла в графе и
     не было, выводится сообщение об ошибке
+
+    - Параметры:
+    -- const std::string& node_name - идентификатор удаляемой ноды
   */
   void RemoveNode(const std::string &node_name) {
     auto node_iter = node_storage_.find(node_name);
@@ -430,7 +433,12 @@ private:
   }
 
   /*
+    Метод для нумерации нод в порядке Reverse Post-Order(RPO), относительно
+    стартовой вершины. Если стартовой вершины, на самом деле, нет в графе,
+    выводится сообщение об ошибке.
 
+    - Параметры:
+    -- const std::string& start_node_name - идентификатор стартовой ноды
   */
   void RPONumbering(const std::string &start_node_name) {
     if (node_storage_.find(start_node_name) == node_storage_.end()) {
@@ -458,6 +466,15 @@ private:
     std::cout << std::endl;
   }
 
+  /*
+    Метод для запуска алгоритма Дейкстры относительно некоторой стартовой
+    вершины. Ответ выводится в отсортированном порядке относительно имён
+    узлов(поэтому и используется std::map). Если стартовой ноды с данным
+    идентификатором в графе нет, выводится сообщение об ошибке
+
+    - Параметры:
+    -- const std::string& start_node_name - идентификатор стартовой ноды
+  */
   void Dijkstra(const std::string &start_node_name) {
     if (node_storage_.find(start_node_name) == node_storage_.end()) {
       std::cout << "Unknown node " << start_node_name << std::endl;
@@ -500,6 +517,16 @@ private:
     }
   }
 
+  /*
+    Метод для запуска алгоритма Эдмондса-Карпа(BFS-модификация алгоритма
+    Форда-Фалкерсона поиска max-потока) относительно двух нод графа(первая -
+    источник, вторая - сток). Если какая-то из нод отсутствует в графе,
+    выводится соответствующее случаю сообщение об ошибке
+
+    - Параметры:
+    -- const std::string& start_point - идентификатор источника
+    -- const std::string& end_point - идентификатор стока
+  */
   void EdmondsKarp(const std::string &start_point,
                    const std::string &end_point) {
     auto [start_node, end_node] = GetNodeIfPairExists(start_point, end_point);
@@ -562,6 +589,14 @@ private:
     std::cout << max_flow << std::endl;
   }
 
+  /*
+    Метод для запуска BFS для поиска увеличивающего пути в остаточной сети. Если такой путь нашёлся, метод возвращает true, иначе - false.
+
+    - Параметры:
+    -- Node* start_node - указатель на источник
+    -- Node* end_node - указатель на сток
+    -- std::unordered_map<Node*, ParentData>& parents - хэш-таблица для хранения увеличивающего пути
+  */
   bool AugmenticBFS(Node *start_node, Node *end_node,
                     std::unordered_map<Node *, ParentData> &parents) {
     std::queue<Node *> queue;

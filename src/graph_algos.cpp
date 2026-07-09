@@ -590,12 +590,14 @@ private:
   }
 
   /*
-    Метод для запуска BFS для поиска увеличивающего пути в остаточной сети. Если такой путь нашёлся, метод возвращает true, иначе - false.
+    Метод для запуска BFS для поиска увеличивающего пути в остаточной сети. Если
+    такой путь нашёлся, метод возвращает true, иначе - false.
 
     - Параметры:
     -- Node* start_node - указатель на источник
     -- Node* end_node - указатель на сток
-    -- std::unordered_map<Node*, ParentData>& parents - хэш-таблица для хранения увеличивающего пути
+    -- std::unordered_map<Node*, ParentData>& parents - хэш-таблица для хранения
+    увеличивающего пути
   */
   bool AugmenticBFS(Node *start_node, Node *end_node,
                     std::unordered_map<Node *, ParentData> &parents) {
@@ -637,6 +639,14 @@ private:
     return false;
   }
 
+  /*
+    Метод для выполнения команды TARJAN относительно некоторого
+    стартового узла. Если идентификатор стартовой ноды невалиден, выводит
+    сообщение об ошибке
+
+    - Параметры:
+    -- const std::string& start_node_name - идентификатор стартовой ноды
+  */
   void SCCSearch(const std::string &start_node_name) {
     int timer = 0;
     std::unordered_map<Node *, TarjanInfo> node_info;
@@ -669,6 +679,18 @@ private:
     }
   }
 
+  /*
+    Метод, реализующий поиск КСС(алгоритм Тарьяна) относительно некоторой
+    валидной стартовой вершины
+
+    - Параметры:
+    -- Node* start_node - указатель на валидный стартовый узел
+    -- std::unordered_map<Node*, TarjanInfo>& node_info - хэш-таблица для
+    хранения index/lowlink/is_on_stack для каждого посещённого узла
+    -- std::stack<Node*>& stack - стек узлов-кандидатов в текущую строящуюся КСС
+    -- std::vector<std::vector<std::string>>& sccs - результирующий вектор
+    найденных нетривиальных КСС, которые представляются в виде векторов идентификаторов
+  */
   void SCCDFS(Node *start_node, int &timer,
               std::unordered_map<Node *, TarjanInfo> &node_info,
               std::stack<Node *> &stack,

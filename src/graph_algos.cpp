@@ -33,7 +33,7 @@
   -- void CommandProcessing(std::stringstream&)
 
   - Приватные методы:
-  -- std::pair<Node*, Node*> GetNodeIfPairExists(const std::string&, const
+  -- std::pair<Node*, Node*> GetNodesIfPairExists(const std::string&, const
   std::string&)
   -- void DFS(Node*, std::unordered_map<Node*, int>&, std::vector<std::string>&)
   -- void AddNode(const std::string&)
@@ -235,6 +235,26 @@ private:
   };
 
   /*
+    Метод для поиска узла графа по идентификатору. Если идентификтор не является
+    валидным(то есть в графе нет такой вершины), то выводится сообщение об
+    ошибке и возвращается nullptr. Если же всё корректно, то возвращается
+    указатель на вершину с этим именем
+
+    - Параметры:
+    -- const std::string& node_name - идентификатор искомой ноды
+  */
+  Node *GetNodeIfItExists(const std::string &node_name) {
+    auto node_iter = node_storage_.find(node_name);
+
+    if (node_iter == node_storage_.end()) {
+      std::cout << "Unknown node " << node_name << std::endl;
+      return nullptr;
+    }
+
+    return node_iter->second;
+  }
+
+  /*
     Метод для поиска двух узлов графа по их идентификаторам с проверкой
     существования. Если хотя бы один из узлов не найден, печатает
     соответствующее сообщение об ошибке и возвращает пару указателей на nullptr.
@@ -248,8 +268,8 @@ private:
     nullptr, если одного из узлов не существует
   */
   std::pair<Node *, Node *>
-  GetNodeIfPairExists(const std::string &source_name,
-                      const std::string &target_name) {
+  GetNodesIfPairExists(const std::string &source_name,
+                       const std::string &target_name) {
     auto source_iter = node_storage_.find(source_name);
     auto target_iter = node_storage_.find(target_name);
 
@@ -343,7 +363,7 @@ private:
   void AddEdge(const std::string &source_name, const std::string &target_name,
                unsigned weight) {
     auto [source_node, target_node] =
-        GetNodeIfPairExists(source_name, target_name);
+        GetNodesIfPairExists(source_name, target_name);
 
     if (!source_node || !target_node) {
       return;
@@ -390,7 +410,7 @@ private:
   void RemoveEdge(const std::string &source_name,
                   const std::string &target_name) {
     auto [source_node, target_node] =
-        GetNodeIfPairExists(source_name, target_name);
+        GetNodesIfPairExists(source_name, target_name);
 
     if (!source_node || !target_node) {
       return;
@@ -417,7 +437,7 @@ private:
       return;
     }
 
-    Node *valid_node = node_iter->second;
+    Node *valid_node = GetNodeIfItExists(node_name);
 
     while (!valid_node->in.empty()) {
       RemoveEdge(valid_node->in.front());
@@ -441,15 +461,16 @@ private:
     -- const std::string& start_node_name - идентификатор стартовой ноды
   */
   void RPONumbering(const std::string &start_node_name) {
-    if (node_storage_.find(start_node_name) == node_storage_.end()) {
-      std::cout << "Unknown node " << start_node_name << std::endl;
+    Node *start_node = GetNodeIfItExists(start_node_name);
+
+    if (start_node == nullptr) {
       return;
     }
 
     std::unordered_map<Node *, int> colors = {};
     std::vector<std::string> post_order_ids = {};
 
-    DFS(node_storage_[start_node_name], colors, post_order_ids);
+    DFS(start_node, colors, post_order_ids);
 
     bool first_iter = true;
     for (auto reverse_iter = post_order_ids.rbegin();
@@ -476,8 +497,7 @@ private:
     -- const std::string& start_node_name - идентификатор стартовой ноды
   */
   void Dijkstra(const std::string &start_node_name) {
-    if (node_storage_.find(start_node_name) == node_storage_.end()) {
-      std::cout << "Unknown node " << start_node_name << std::endl;
+    if (GetNodeIfItExists(start_node_name) == nullptr) {
       return;
     }
 
@@ -529,7 +549,7 @@ private:
   */
   void EdmondsKarp(const std::string &start_point,
                    const std::string &end_point) {
-    auto [start_node, end_node] = GetNodeIfPairExists(start_point, end_point);
+    auto [start_node, end_node] = GetNodesIfPairExists(start_point, end_point);
 
     if (!start_node || !end_node) {
       return;
@@ -653,12 +673,13 @@ private:
     std::stack<Node *> stack;
     std::vector<std::vector<std::string>> sccs;
 
-    if (node_storage_.find(start_node_name) == node_storage_.end()) {
-      std::cout << "Unknown node " << start_node_name << std::endl;
+    Node* start_node = GetNodeIfItExists(start_node_name);
+    
+    if (start_node == nullptr) {
       return;
     }
 
-    SCCDFS(node_storage_[start_node_name], timer, node_info, stack, sccs);
+    SCCDFS(start_node, timer, node_info, stack, sccs);
 
     std::sort(sccs.begin(), sccs.end(),
               [](const std::vector<std::string> &first,
@@ -689,7 +710,8 @@ private:
     хранения index/lowlink/is_on_stack для каждого посещённого узла
     -- std::stack<Node*>& stack - стек узлов-кандидатов в текущую строящуюся КСС
     -- std::vector<std::vector<std::string>>& sccs - результирующий вектор
-    найденных нетривиальных КСС, которые представляются в виде векторов идентификаторов
+    найденных нетривиальных КСС, которые представляются в виде векторов
+    идентификаторов
   */
   void SCCDFS(Node *start_node, int &timer,
               std::unordered_map<Node *, TarjanInfo> &node_info,
